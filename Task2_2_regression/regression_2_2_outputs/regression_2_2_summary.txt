@@ -1,0 +1,61 @@
+REGRESSION 2.2 — MODEL SUMMARIES
+============================================================
+
+MULTIPLE LINEAR REGRESSION
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:             GoalScored   R-squared:                       0.264
+Model:                            OLS   Adj. R-squared:                  0.249
+Method:                 Least Squares   F-statistic:                     21.52
+Date:                Sun, 04 Oct 2026   Prob (F-statistic):           6.36e-13
+Time:                        14:57:59   Log-Likelihood:                -331.80
+No. Observations:                 208   AIC:                             673.6
+Df Residuals:                     203   BIC:                             690.3
+Df Model:                           4                                         
+Covariance Type:              cluster                                         
+====================================================================================================
+                                       coef    std err          z      P>|z|      [0.025      0.975]
+----------------------------------------------------------------------------------------------------
+const                                1.4808      0.092     16.046      0.000       1.300       1.662
+RankPointsDiff_TeamVsOpponent        0.0029      0.000      7.091      0.000       0.002       0.004
+HostAdvantage_TeamVsOpponent         0.3383      0.275      1.230      0.219      -0.201       0.877
+FormGoalsForDiff_TeamVsOpponent     -0.1417      0.086     -1.638      0.101      -0.311       0.028
+FormGoalsAgstDiff_TeamVsOpponent    -0.1307      0.114     -1.151      0.250      -0.353       0.092
+==============================================================================
+Omnibus:                       31.589   Durbin-Watson:                   1.860
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):               48.955
+Skew:                           0.853   Prob(JB):                     2.34e-11
+Kurtosis:                       4.655   Cond. No.                         692.
+==============================================================================
+
+Notes:
+[1] Standard Errors are robust to cluster correlation (CRV1)
+
+POISSON REGRESSION
+                 Generalized Linear Model Regression Results                  
+==============================================================================
+Dep. Variable:             GoalScored   No. Observations:                  208
+Model:                            GLM   Df Residuals:                      203
+Model Family:                 Poisson   Df Model:                            4
+Link Function:                    Log   Scale:                          1.0000
+Method:                          IRLS   Log-Likelihood:                -299.98
+Date:                Sun, 04 Oct 2026   Deviance:                       220.05
+Time:                        14:57:59   Pearson chi2:                     197.
+No. Iterations:                     5   Pseudo R-squ. (CS):             0.2949
+Covariance Type:              cluster                                         
+====================================================================================================
+                                       coef    std err          z      P>|z|      [0.025      0.975]
+----------------------------------------------------------------------------------------------------
+const                                0.2709      0.069      3.905      0.000       0.135       0.407
+RankPointsDiff_TeamVsOpponent        0.0020      0.000      7.709      0.000       0.001       0.003
+HostAdvantage_TeamVsOpponent         0.2487      0.190      1.311      0.190      -0.123       0.620
+FormGoalsForDiff_TeamVsOpponent     -0.0966      0.058     -1.652      0.098      -0.211       0.018
+FormGoalsAgstDiff_TeamVsOpponent    -0.0876      0.075     -1.167      0.243      -0.235       0.060
+====================================================================================================
+
+MODEL COMPARISON ON HELD-OUT MATCHES
+                     Model    MAE   RMSE  R_squared  AIC_Full_Data
+Multiple Linear Regression 1.0360 1.3093     0.1855       673.6082
+        Poisson Regression 1.0046 1.2913     0.2079       609.9671
+
+POISSON DISPERSION STATISTIC: 0.9724
