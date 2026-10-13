@@ -1,5 +1,13 @@
 # task2_1.py
 # Author: Mildred
+# Improvements: Prakash Dangi
+#   - checks the Excel file has every column the model needs before running
+#   - the VIF, correlation and assumption messages are now worked out from the
+#     results instead of being fixed text, so they stay correct if the data
+#     changes
+#   - the dashed "perfect prediction" line in the plot now fits the data range
+#   - handles the case where no variable is significant
+#
 # Objective 2 - LINEAR REGRESSION 2.1
 # Predicting the GOAL DIFFERENCE of a FIFA World Cup 2026 match
 #
@@ -41,6 +49,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(HERE, "data", "lr21_matches.xlsx")
 
 LINE = "=" * 72
+VIF_LIMIT = 5          # VIF at or above this is treated as too high
 
 
 def heading(text):
@@ -173,6 +182,15 @@ def main():
         return
     df = pd.read_excel(DATA_FILE)      # needs the openpyxl package
     print("Loaded %d rows and %d columns" % df.shape)
+
+    # stop early with a clear message if a needed column is missing,
+    # instead of crashing later with a KeyError
+    missing_cols = [c for c in FEATURES + [TARGET] if c not in df.columns]
+    if missing_cols:
+        print("The Excel file is missing these columns: %s"
+              % ", ".join(missing_cols))
+        return
+
     print("\nFirst 5 rows:")
     print(df.head().to_string(index=False))
 
@@ -204,14 +222,17 @@ def main():
 
     # Pearson correlation r: -1 to +1. Near 0 = no straight-line link.
     print("\nCorrelation of each variable with GoalDiff:")
-    for name in FEATURES:
-        r = X[name].corr(y)
+    corrs = {name: X[name].corr(y) for name in FEATURES}
+    for name, r in corrs.items():
         strength = ("strong" if abs(r) >= 0.5 else
                     "moderate" if abs(r) >= 0.3 else
                     "weak" if abs(r) >= 0.1 else "very weak")
         print("   %-18s r = %+.3f   (%s)" % (name, r, strength))
-    print("\nRanking points has by far the strongest link with goal difference,")
-    print("which is what I expected - better teams beat weaker teams.")
+    strongest = max(corrs, key=lambda n: abs(corrs[n]))
+    print("\nStrongest link with goal difference: %s (r = %+.3f)."
+          % (strongest, corrs[strongest]))
+    if strongest == "RankPointsDiff":
+        print("This is what I expected - better teams beat weaker teams.")
 
     # =================================================================
     heading("STEP 5: ARE THE VARIABLES COPIES OF EACH OTHER? (VIF)")
@@ -225,8 +246,15 @@ def main():
     vifs = {name: variance_inflation_factor(Xc.values, i + 1)
             for i, name in enumerate(FEATURES)}
     for name, v in vifs.items():
-        print("   %-18s VIF = %.2f   %s" % (name, v, "ok" if v < 5 else "HIGH"))
-    print("\nAll below 5, so I can keep all 8 variables.")
+        print("   %-18s VIF = %.2f   %s"
+              % (name, v, "ok" if v < VIF_LIMIT else "HIGH"))
+    high_vif = [name for name, v in vifs.items() if v >= VIF_LIMIT]
+    if high_vif:
+        print("\nHigh VIF for: %s - these overlap with other variables, so"
+              % ", ".join(high_vif))
+        print("their coefficients should be read with care.")
+    else:
+        print("\nAll below %d, so I can keep all 8 variables." % VIF_LIMIT)
 
     # =================================================================
     heading("STEP 6: TRAINING AND TEST DATA")
@@ -338,7 +366,8 @@ def main():
               % ("Intercept" if term == "const" else term, ols.params[term],
                  p_text, "SIG" if p <= 0.05 else "", lo, hi))
     significant = [f for f in FEATURES if ols.pvalues[f] <= 0.05]
-    print("\nSignificant at 5%%: %s" % ", ".join(significant))
+    sig_text = ", ".join(significant) if significant else "none of the 8"
+    print("\nSignificant at 5%%: %s" % sig_text)
     print("Adjusted R-squared is lower than R-squared because it is penalised")
     print("for every variable that doesn't help - a sign some of the 8 are")
     print("not adding much on top of the ranking.")
@@ -355,17 +384,22 @@ def main():
     resid = ols.resid
     sw_p = stats.shapiro(resid).pvalue
     bp_p = het_breuschpagan(resid, ols.model.exog)[1]
+    max_vif = max(vifs.values())
     print("   mean of residuals    %.4f  (should be about 0)" % resid.mean())
     print("   Shapiro-Wilk p       %.3f  -> %s" % (sw_p,
           "normal, ok" if sw_p > 0.05 else "NOT normal"))
     print("   Breusch-Pagan p      %.3f  -> %s" % (bp_p,
           "constant spread, ok" if bp_p > 0.05 else "spread NOT constant"))
-    print("   largest VIF          %.2f  -> ok" % max(vifs.values()))
+    print("   largest VIF          %.2f  -> %s" % (max_vif,
+          "ok" if max_vif < VIF_LIMIT else "HIGH"))
 
     # the two plots for the report
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
     ax[0].scatter(ols.fittedvalues, y, alpha=0.6)
-    ax[0].plot([-4, 6], [-4, 6], "--", color="grey")
+    # dashed line = perfect prediction; stretch it over the data range
+    lo = min(ols.fittedvalues.min(), y.min()) - 0.5
+    hi = max(ols.fittedvalues.max(), y.max()) + 0.5
+    ax[0].plot([lo, hi], [lo, hi], "--", color="grey")
     ax[0].set_xlabel("Predicted goal difference")
     ax[0].set_ylabel("Actual goal difference")
     ax[0].set_title("Actual vs predicted")
@@ -377,8 +411,10 @@ def main():
     fig.tight_layout()
     plot_file = os.path.join(HERE, "lr21_diagnostics.png")
     fig.savefig(plot_file, dpi=150)
-    print("\nPlots saved to lr21_diagnostics.png - the residuals are scattered")
-    print("evenly around 0 with no curve, so a straight line is reasonable.")
+    plt.close(fig)
+    print("\nPlots saved to lr21_diagnostics.png - in the right-hand plot the")
+    print("residuals should be scattered evenly around 0 with no curve if a")
+    print("straight line is reasonable.")
 
     # =================================================================
     heading("STEP 11: CONCLUSION")
@@ -386,18 +422,19 @@ def main():
     print("Using only information available before kick-off, the model")
     print("explains %.0f%% of the variation in goal difference (adjusted"
           % (ols.rsquared * 100))
-    print("R-squared %.2f, F-test p = %.2g, so the model is significant)."
-          % (ols.rsquared_adj, ols.f_pvalue))
+    print("R-squared %.2f, F-test p = %.2g, so the model is %s)."
+          % (ols.rsquared_adj, ols.f_pvalue,
+             "significant" if ols.f_pvalue <= 0.05 else "NOT significant"))
     print()
     print("On unseen matches it is off by %.2f goals on average, against"
           % mae)
     print("%.2f for the baseline guess, and it picks the right winner %.0f%%"
           % (b_mae, right.mean() * 100))
-    ok = sw_p > 0.05 and bp_p > 0.05 and max(vifs.values()) < 5
+    ok = sw_p > 0.05 and bp_p > 0.05 and max_vif < VIF_LIMIT
     print("of the time. The assumptions checked in Step 10 %s."
           % ("hold" if ok else "do NOT all hold, so treat p-values with care"))
     print()
-    print("Significant at 5%%: %s. Most of the" % ", ".join(significant))
+    print("Significant at 5%%: %s. Most of the" % sig_text)
     print("predictive power comes from how strong the teams were BEFORE the")
     print("tournament; recent form adds little once the ranking is known.")
     print()
